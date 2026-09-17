@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projek Thinkers - Sistem Pemantauan Parit Culvert</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #121214;
+            --bg-secondary: #1a1a1e;
+            --bg-card: #222227;
+            --text-main: #ffffff;
+            --text-muted: #a0a0aa;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --border-color: #2e2e35;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            width: 100%;
+            max-width: 1250px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .logo-section h1 {
+            font-size: 20px;
+            color: var(--accent-amber);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-section p {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .live-badge {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background-color: currentColor;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.5; }
+            100% { transform: scale(0.9); opacity: 1; }
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 38% 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        /* Grafik Parit */
+        .status-box { text-align: center; }
+        .status-circle {
+            width: 160px; height: 160px;
+            border-radius: 50%; border: 8px solid var(--text-muted);
+            display: inline-flex; flex-direction: column; justify-content: center; align-items: center;
+            margin: 0 auto 16px auto; background-color: rgba(255, 255, 255, 0.01);
+            transition: all 0.3s ease;
+        }
+        .status-circle.normal { border-color: var(--accent-green); box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+        .status-circle.amaran { border-color: var(--accent-amber); box-shadow: 0 0 20px rgba(245, 158, 11, 0.2); }
+        .status-circle.bahaya { border-color: var(--accent-red); box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+
+        .status-text { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
+        .status-circle.normal .status-text { color: var(--accent-green); }
+        .status-circle.amaran .status-text { color: var(--accent-amber); }
+        .status-circle.bahaya .status-text { color: var(--accent-red); }
+
+        .status-circle p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .level-indicator { font-size: 15px; font-weight: 500; margin-top: 10px; }
+
+        .culvert-diagram {
+            position: relative; height: 200px; background: #2a2a32;
+            border-radius: 6px; margin-top: 15px; overflow: hidden; border: 2px solid #3f3f46;
+        }
+        .culvert-pipe {
+            position: absolute; bottom: 0; left: 5%; width: 90%; height: 140px;
+            background: #1e1e24; border: 4px solid #52525b; border-bottom: none; border-radius: 70px 70px 0 0;
+        }
+        .water-layer {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 10%;
+            background: rgba(59, 130, 246, 0.6); border-top: 2px solid var(--accent-blue); transition: height 0.5s ease;
+        }
+        .sensor-node {
+            position: absolute; right: 15%; width: 14px; height: 14px;
+            background-color: #52525b; border-radius: 50%; border: 2px solid #fff; z-index: 10;
+        }
+        .sensor-node::after {
+            position: absolute; left: 22px; top: -4px; font-size: 11px; font-weight: bold;
+            white-space: nowrap; color: var(--text-muted); padding: 2px 6px; background: #121214;
+            border-radius: 4px; border: 1px solid #3f3f46;
+        }
+        .node-hhl { bottom: 110px; } .node-hhl::after { content: "HHL (D6) - P3"; }
+        .node-hl { bottom: 70px; } .node-hl::after { content: "HL (D3) - P2"; }
+        .node-ll { bottom: 30px; } .node-ll::after { content: "LL (D2) - P1"; }
+        
+        .node-ll.active { background-color: var(--accent-green); color: var(--accent-green); border-color: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); }
+        .node-hl.active { background-color: var(--accent-amber); color: var(--accent-amber); border-color: var(--accent-amber); box-shadow: 0 0 10px var(--accent-amber); }
+        .node-hhl.active { background-color: var(--accent-red); color: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); }
+
+        .cloud-status { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+        .chart-container { position: relative; height: 220px; width: 100%; margin-top: 10px; }
+
+        /* Hardware Stats */
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-box-summary { background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; text-align: center; }
+        .stat-box-summary .num { font-size: 18px; font-weight: bold; margin-top: 4px; }
+        .stat-box-summary .lbl { font-size: 11px; color: var(--text-muted); }
+
+        .stat-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #2e2e35; font-size: 13.5px; }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: var(--text-muted); }
+        .stat-value { font-weight: 600; }
+        .value-green { color: var(--accent-green); font-size: 12px;}
+        .value-amber { color: var(--accent-amber); font-size: 12px;}
+        .value-red { color: var(--accent-red); font-size: 12px;}
+
+        /* Table */
+        .table-wrapper { max-height: 250px; overflow-y: auto; }
+        .log-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+        .log-table th { color: var(--text-muted); padding: 10px; border-bottom: 2px solid var(--border-color); font-weight: 600; position: sticky; top: 0; background-color: var(--bg-card); z-index: 5; }
+        .log-table td { padding: 10px; border-bottom: 1px solid var(--border-color); }
+        .log-table tr:hover { background-color: rgba(255, 255, 255, 0.02); }
+        
+        .badge { padding: 3px 6px; border-radius: 4px; font-weight: bold; font-size: 10.5px; display: inline-block; }
+        .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <header>
+        <div class="logo-section">
+            <!-- KLIK PADA TEKS "Thinkers" INI UNTUK UBAH DATA DIAM-DIAM -->
+            <h1 onclick="majukanSenarioPentas()" style="cursor: default; user-select: none;">⚙️ Thinkers</h1>
+            <p>Sistem Pemantauan Paras Air Culvert Lebuhraya • Live System</p>
+        </div>
+        <div class="live-badge" id="mainLiveBadge">
+            <div class="live-dot"></div>
+            SAMBUNGAN GPRS (SIM800L) LIVE
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- LAJUR KIRI -->
+        <div class="column-left">
+            <div class="card status-box">
+                <div class="card-title"><span>Status Sistem Semasa</span></div>
+                <div class="status-circle normal" id="statusCircle">
+                    <span class="status-text" id="statusText">NORMAL</span>
+                    <p id="timeLabel">Kemaskini: Terkini</p>
+                </div>
+                <div class="level-indicator" id="levelIndicator">Paras Air Terkini: <span style="color: var(--accent-green)">Paras 1 (D2 Terendam)</span></div>
+
+                <div class="culvert-diagram">
+                    <div class="culvert-pipe">
+                        <div class="water-layer" id="waterLayer" style="height: 35%;"></div>
+                    </div>
+                    <div class="sensor-node node-hhl" id="nodeHHL"></div>
+                    <div class="sensor-node node-hl" id="nodeHL"></div>
+                    <div class="sensor-node node-ll active" id="nodeLL"></div>
+                </div>
+                <div class="cloud-status" id="cloudStatus">Sistem Auto-Refresh: Aktif (GPRS Connected)</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title"><span>TREND PARAS AIR (24 JAM)</span></div>
+                <div class="chart-container"><canvas id="waterChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- LAJUR KANAN -->
+        <div class="column-right">
+            <!-- Hardware Stats -->
+            <div class="card">
+                <div class="card-title">STATUS HARDWARE & RINGKASAN HARI INI</div>
+
+                <div class="stat-grid">
+                    <div class="stat-box-summary">
+                        <div class="lbl">Total Rekod (Hari Ini)</div>
+                        <div class="num" style="color: var(--accent-blue)" id="totalRecordsCount">0</div>
+                    </div>
+                    <div class="stat-box-summary">
+                        <div class="lbl">Insiden Amaran (P2)</div>
+                        <div class="num" style="color: var(--accent-amber)" id="p2Count">0 Kali</div>
+                    </div>
+                    <div class="stat-box-summary">
+                        <div class="lbl">Insiden Bahaya (P3)</div>
+                        <div class="num" style="color: var(--accent-red)" id="p3Count">0 Kali</div>
+                    </div>
+                    <div class="stat-box-summary">
+                        <div class="lbl">Kesihatan Sistem</div>
+                        <div class="num" style="color: var(--accent-green)" id="sysHealth">100%</div>
+                    </div>
+                </div>
+
+                <div class="stat-row">
+                    <span class="stat-label">Mikropengawal Utama</span>
+                    <span class="stat-value">Arduino Nano V3 (ATMega328P)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Voltan Bateri Utama</span>
+                    <span class="stat-value" id="batteryVal">12.6V <span class="value-green">(Kondisi OK)</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Input Panel Solar</span>
+                    <span class="stat-value" id="solarVal">18.4V <span class="value-amber">(Pengecasan Aktif)</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Rangkaian GPRS / SD Card</span>
+                    <span class="stat-value" id="gprsTableStatus" style="color: var(--accent-green)">Aktif (SIM800L) • SD Log Synchronized</span>
+                </div>
+            </div>
+
+            <!-- Table Card -->
+            <div class="card">
+                <div class="card-title"><span>Sejarah Rekod Log (Real-time)</span></div>
+                <div class="table-wrapper">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Masa & Tarikh</th>
+                                <th>Status Paras</th>
+                                <th>Voltan (Bateri/Solar)</th>
+                                <th>Tindakan Sistem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logBody">
+                            <!-- Data dimuatkan di sini secara magik -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let waterChartObj = null;
+    let dataSehari = [];
+
+    // === SKRIP KAWALAN RAHSIA PENTAS ===
+    // Senarai jalan cerita presentasi anda
+    const senaraiSenario = [
+        { level: 1, bat: "12.6", solar: "18.4", gprs: "online", nota: "Paras 1 (Normal)" },
+        { level: 2, bat: "12.4", solar: "5.0",  gprs: "online", nota: "Paras 2 (Hujan & Mendung)" },
+        { level: 3, bat: "12.1", solar: "2.1",  gprs: "online", nota: "Paras 3 (Bahaya - Gelap)" },
+        { level: 3, bat: "12.1", solar: "2.1",  gprs: "offline", nota: "GPRS Terputus" },
+        { level: 0, bat: "12.6", solar: "18.4", gprs: "online", nota: "Air Surut (Kering)" }
+    ];
+
+    let indeksSenarioSemasa = 0;
+
+    // Fungsi 1: Majukan senario apabila logo diklik (Mouse Click)
+    function majukanSenarioPentas() {
+        indeksSenarioSemasa = (indeksSenarioSemasa + 1) % senaraiSenario.length;
+        jalankanSenario(senaraiSenario[indeksSenarioSemasa]);
+    }
+
+    // Fungsi 2: Pintasan Keyboard (Rahsia)
+    document.addEventListener('keydown', function(event) {
+        if (event.key === '1') jalankanSenario(senaraiSenario[0]); // Normal
+        if (event.key === '2') jalankanSenario(senaraiSenario[1]); // Amaran (Hujan)
+        if (event.key === '3') jalankanSenario(senaraiSenario[2]); // Bahaya
+        if (event.key === '0') jalankanSenario(senaraiSenario[3]); // Talian GPRS Terputus
+        if (event.key === '4') jalankanSenario(senaraiSenario[4]); // Kering
+    });
+
+    // Enjin Pemproses Data Utama
+    function jalankanSenario(data) {
+        const bat = data.bat;
+        const solar = data.solar;
+        const level = data.level;
+        const gprs = data.gprs;
+
+        // 1. Kawal UI Rangkaian GPRS
+        const liveBadge = document.getElementById('mainLiveBadge');
+        const cloudStatus = document.getElementById('cloudStatus');
+        const gprsTable = document.getElementById('gprsTableStatus');
+
+        if (gprs === 'online') {
+            liveBadge.style.color = "var(--accent-red)";
+            liveBadge.style.backgroundColor = "rgba(239, 68, 68, 0.1)";
+            liveBadge.innerHTML = `<div class="live-dot"></div> SAMBUNGAN GPRS (SIM800L) LIVE`;
+            cloudStatus.innerText = "Sistem Auto-Refresh: Aktif (GPRS Connected ke Cloud)";
+            gprsTable.innerHTML = `Aktif (SIM800L) • Berhubung ke Server`;
+            gprsTable.style.color = "var(--accent-green)";
+            document.getElementById('sysHealth').innerText = "100%";
+            document.getElementById('sysHealth').style.color = "var(--accent-green)";
+        } else {
+            liveBadge.style.color = "#a0a0aa";
+            liveBadge.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+            liveBadge.innerHTML = `⚠️ GPRS OFFLINE (SIMPAN KE SD KAD)`;
+            cloudStatus.innerText = "Sistem GPRS Terputus • Data disimpan dalam memori lokal SD";
+            gprsTable.innerHTML = `Rangkaian Gagal • Menunggu isyarat GSM`;
+            gprsTable.style.color = "var(--accent-red)";
+            document.getElementById('sysHealth').innerText = "Amaran Talian";
+            document.getElementById('sysHealth').style.color = "var(--accent-amber)";
+        }
+
+        // 2. Jana Masa Sebenar PC anda
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const sec = String(now.getSeconds()).padStart(2, '0');
+        
+        const fullDateStr = `${yyyy}-${mm}-${dd}`;
+        const timeStr = `${hh}:${min}:${sec}`;
+        const datetimeFull = `${fullDateStr} ${timeStr}`;
+
+        // 3. Kemaskini Visual
+        kemaskiniPaparanGrafik(level, datetimeFull, bat, solar);
+
+        // 4. Masukkan ke dalam rekod
+        const newRecord = {
+            id: Date.now(),
+            datetime: datetimeFull,
+            level: level,
+            bat: bat,
+            solar: solar
+        };
+
+        dataSehari.push(newRecord);
+        renderJadual(dataSehari);
+        kemaskiniGraf();
+    }
+
+    // UI Updater: Render Jadual
+    function renderJadual(listData) {
+        const logBody = document.getElementById('logBody');
+        logBody.innerHTML = "";
+        const sorted = [...listData].reverse();
+
+        sorted.forEach(item => {
+            const tr = document.createElement('tr');
+            let badgeHTML = ''; let actionText = '';
+
+            if (item.level === 0) {
+                badgeHTML = `<span class="badge badge-green">KERING (0)</span>`;
+                actionText = `Log Biasa Disimpan`;
+            } else if (item.level === 1) {
+                badgeHTML = `<span class="badge badge-green">PARAS 1 (LL)</span>`;
+                actionText = `Amaran Bersedia Aktif`;
+            } else if (item.level === 2) {
+                badgeHTML = `<span class="badge badge-amber">PARAS 2 (HL)</span>`;
+                actionText = `Siren Tapak Dihidupkan`;
+            } else if (item.level === 3) {
+                badgeHTML = `<span class="badge badge-red">PARAS 3 (HHL)</span>`;
+                actionText = `<strong>SMS Bahaya Dihantar!</strong>`;
+            }
+
+            const timeParts = item.datetime.split(' ');
+            tr.innerHTML = `
+                <td><strong>${timeParts[1]}</strong><br><small style="color:var(--text-muted)">${timeParts[0]}</small></td>
+                <td>${badgeHTML}</td>
+                <td>${item.bat}V / ${item.solar}V</td>
+                <td>${actionText}</td>
+            `;
+            logBody.appendChild(tr);
+        });
+
+        document.getElementById('totalRecordsCount').innerText = listData.length;
+        document.getElementById('p2Count').innerText = `${listData.filter(d => d.level === 2).length} Kali`;
+        document.getElementById('p3Count').innerText = `${listData.filter(d => d.level === 3).length} Kali`;
+    }
+
+    // UI Updater: Visual Parit & Bulatan Status
+    function kemaskiniPaparanGrafik(level, masaStr, bat, solar) {
+        const circle = document.getElementById('statusCircle');
+        const text = document.getElementById('statusText');
+        const indicator = document.getElementById('levelIndicator');
+        const water = document.getElementById('waterLayer');
+        const nLL = document.getElementById('nodeLL');
+        const nHL = document.getElementById('nodeHL');
+        const nHHL = document.getElementById('nodeHHL');
+
+        let batStatus = "";
+        if(bat >= 12.0) batStatus = `<span class="value-green">(Kondisi OK)</span>`;
+        else if(bat >= 11.5) batStatus = `<span class="value-amber">(Mula Lemah)</span>`;
+        else batStatus = `<span class="value-red">(Kritikal - Segera Cas)</span>`;
+        document.getElementById('batteryVal').innerHTML = `${bat}V ${batStatus}`;
+
+        let solarStatus = "";
+        if(solar >= 13.0) solarStatus = `<span class="value-green">(Mengecas Penuh)</span>`;
+        else if(solar > 5.0) solarStatus = `<span class="value-amber">(Cahaya Mendung)</span>`;
+        else solarStatus = `<span class="value-red">(Malam / Gelap)</span>`;
+        document.getElementById('solarVal').innerHTML = `${solar}V ${solarStatus}`;
+
+        document.getElementById('timeLabel').innerText = "Rekod: " + masaStr.split(' ')[1];
+
+        nLL.classList.remove('active'); nHL.classList.remove('active'); nHHL.classList.remove('active');
+        circle.className = "status-circle";
+
+        if (level === 0) {
+            circle.classList.add('normal'); text.innerText = "NORMAL";
+            indicator.innerHTML = `Paras Air: <span style="color: var(--accent-green)">Kering / Selamat</span>`;
+            water.style.height = "10%";
+        } else if (level === 1) {
+            circle.classList.add('normal'); text.innerText = "NORMAL";
+            indicator.innerHTML = `Paras Air: <span style="color: var(--accent-green)">Paras 1 (D2 Terendam)</span>`;
+            water.style.height = "35%"; nLL.classList.add('active');
+        } else if (level === 2) {
+            circle.classList.add('amaran'); text.innerText = "AMARAN";
+            indicator.innerHTML = `Paras Air: <span style="color: var(--accent-amber)">Paras 2 (D3 Terendam)</span>`;
+            water.style.height = "60%"; nLL.classList.add('active'); nHL.classList.add('active');
+        } else if (level === 3) {
+            circle.classList.add('bahaya'); text.innerText = "BAHAYA";
+            indicator.innerHTML = `Paras Air: <span style="color: var(--accent-red)">Paras 3 (D6 Terendam)</span>`;
+            water.style.height = "85%"; nLL.classList.add('active'); nHL.classList.add('active'); nHHL.classList.add('active');
+        }
+    }
+
+    // Setup Chart.js
+    function inisialisasiGraf() {
+        const ctx = document.getElementById('waterChart').getContext('2d');
+        waterChartObj = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], datasets: [{
+                    label: 'Paras Air (0-3)', data: [],
+                    borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    borderWidth: 2, fill: true, tension: 0.3,
+                    pointBackgroundColor: function(c) {
+                        const v = c.dataset.data[c.dataIndex];
+                        if (v === 3) return '#ef4444'; if (v === 2) return '#f59e0b'; return '#10b981';
+                    }, pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { min: 0, max: 3, ticks: { stepSize: 1, color: '#a0a0aa', callback: function(v) {
+                                if (v===0) return 'Kering'; if (v===1) return 'Paras 1';
+                                if (v===2) return 'Paras 2'; if (v===3) return 'Paras 3';
+                            } }
+                    },
+                    x: { ticks: { color: '#a0a0aa', font: { size: 10 } }, grid: { color: '#2e2e35' } }
+                }, plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // Update Chart.js (Max 15 rekod terkini supaya graf kemas)
+    function kemaskiniGraf() {
+        if (!waterChartObj) return;
+        const dataGraf = dataSehari.slice(-15);
+        waterChartObj.data.labels = dataGraf.map(d => d.datetime.split(' ')[1]);
+        waterChartObj.data.datasets[0].data = dataGraf.map(d => d.level);
+        waterChartObj.update();
+    }
+
+    window.onload = function() {
+        inisialisasiGraf();
+        jalankanSenario(senaraiSenario[0]); // Load data Normal semasa mula-mula buka web
+    };
+</script>
+
+</body>
+</html>
